@@ -1,65 +1,82 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useRef } from "react";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 export default function Home() {
+  const [isConverting, setIsConverting] = useState(false);
+  const [message, setMessage] = useState("MP4ファイルを選択してください");
+  const ffmpegRef = useRef(new FFmpeg());
+
+  const handleConvert = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsConverting(true);
+    setMessage("FFmpegを読み込み中...");
+    const ffmpeg = ffmpegRef.current;
+
+    try {
+      // 初回のみFFmpegのコアファイルを読み込む
+      if (!ffmpeg.loaded) {
+        const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+        await ffmpeg.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        });
+      }
+
+      setMessage("MP3へ変換中...");
+
+      // ブラウザの仮想ファイルシステムにMP4を書き込む
+      await ffmpeg.writeFile("input.mp4", await fetchFile(file));
+
+      // Automatorと同じ引数で変換コマンドを実行（音質 q:a 2）
+      await ffmpeg.exec(["-i", "input.mp4", "-vn", "-c:a", "libmp3lame", "-q:a", "2", "output.mp3"]);
+
+      // 変換されたMP3ファイルを読み出す
+      const data = await ffmpeg.readFile("output.mp3");
+      const url = URL.createObjectURL(new Blob([data], { type: "audio/mp3" }));
+      
+      // 自動ダウンロード処理
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name.replace(/\.[^/.]+$/, "") + ".mp3";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setMessage("変換が完了しました！");
+    } catch (error) {
+      console.error(error);
+      setMessage("エラーが発生しました。コンソールを確認してください。");
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50">
+      <div className="bg-white p-8 rounded-xl shadow-md text-center max-w-md w-full">
+        <h1 className="text-2xl font-bold mb-6 text-gray-800">MP4 to MP3 Converter</h1>
+        
+        <input
+          type="file"
+          accept="video/mp4,video/quicktime"
+          onChange={handleConvert}
+          disabled={isConverting}
+          className="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        
+        <p className="text-gray-600 mt-4 h-6">{message}</p>
+        
+        {isConverting && (
+          <div className="mt-4 flex justify-center">
+            <div className="animate-spin h-6 w-6 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
