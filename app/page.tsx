@@ -15,7 +15,8 @@ export default function Home() {
 
     setIsConverting(true);
     setMessage("FFmpegを読み込み中...");
-    const ffmpeg = ffmpegRef.current;
+    // サーバー側での実行を防ぎ、ブラウザのみでFFmpegを初期化する
+    const [ffmpeg] = useState(() => typeof window !== "undefined" ? new FFmpeg() : null as any);
 
     try {
       // 初回のみFFmpegのコアファイルを読み込む
