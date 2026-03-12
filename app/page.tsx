@@ -88,3 +88,6 @@ export default function Home() {
     </main>
   );
 }
+// Vercelのビルド時にサーバー側でこのページを生成するのを禁止する
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
