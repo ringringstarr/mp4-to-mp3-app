@@ -37,7 +37,8 @@ export default function Home() {
 
       // 変換されたMP3ファイルを読み出す
       const data = await ffmpeg.readFile("output.mp3");
-      const url = URL.createObjectURL(new Blob([data as any], { type: "audio/mp3" }));
+      // @ts-expect-error: ffmpeg.wasmの型定義の不一致を回避
+      const url = URL.createObjectURL(new Blob([data], { type: "audio/mp3" }));
       
       // 自動ダウンロード処理
       const a = document.createElement("a");
