@@ -7,19 +7,25 @@ import { fetchFile, toBlobURL } from "@ffmpeg/util";
 export default function Home() {
   const [isConverting, setIsConverting] = useState(false);
   const [message, setMessage] = useState("MP4ファイルを選択してください");
-  const ffmpegRef = useRef(new FFmpeg());
+  
+  // FFmpegのインスタンスを保持するための参照
+  const ffmpegRef = useRef<FFmpeg | null>(null);
 
   const handleConvert = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsConverting(true);
-    setMessage("FFmpegを読み込み中...");
-    // サーバー側での実行を防ぎ、ブラウザのみでFFmpegを初期化する
-    const [ffmpeg] = useState(() => typeof window !== "undefined" ? new FFmpeg() : null as any);
+    setMessage("FFmpegを準備中...");
 
     try {
-      // 初回のみFFmpegのコアファイルを読み込む
+      // 実行時に初めてインスタンスを作成し、ブラウザのみで動作させる
+      if (!ffmpegRef.current) {
+        ffmpegRef.current = new FFmpeg();
+      }
+      const ffmpeg = ffmpegRef.current;
+
+      // コアファイルの読み込み
       if (!ffmpeg.loaded) {
         const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
         await ffmpeg.load({
@@ -30,18 +36,18 @@ export default function Home() {
 
       setMessage("MP3へ変換中...");
 
-      // ブラウザの仮想ファイルシステムにMP4を書き込む
+      // ファイルの書き込み
       await ffmpeg.writeFile("input.mp4", await fetchFile(file));
 
-      // Automatorと同じ引数で変換コマンドを実行（音質 q:a 2）
+      // 変換実行
       await ffmpeg.exec(["-i", "input.mp4", "-vn", "-c:a", "libmp3lame", "-q:a", "2", "output.mp3"]);
 
-      // 変換されたMP3ファイルを読み出す
+      // ファイルの読み出し
       const data = await ffmpeg.readFile("output.mp3");
       // @ts-expect-error: ffmpeg.wasmの型定義の不一致を回避
       const url = URL.createObjectURL(new Blob([data], { type: "audio/mp3" }));
       
-      // 自動ダウンロード処理
+      // ダウンロード処理
       const a = document.createElement("a");
       a.href = url;
       a.download = file.name.replace(/\.[^/.]+$/, "") + ".mp3";
@@ -52,7 +58,7 @@ export default function Home() {
       setMessage("変換が完了しました！");
     } catch (error) {
       console.error(error);
-      setMessage("エラーが発生しました。コンソールを確認してください。");
+      setMessage("エラーが発生しました。");
     } finally {
       setIsConverting(false);
     }
